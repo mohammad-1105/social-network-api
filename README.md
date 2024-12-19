@@ -1,5 +1,5 @@
 # Social Network API
-### The backbone of your next-generation social media platform.
+### A robust and scalable backend API for modern social media platforms.
 
 Description
 Social Network API is a modern and lightweight backend designed to power dynamic social media applications. With features like user management, post creation, likes, comments, and follow systems, this API lays the groundwork for building platforms similar to Twitter, Instagram, or Threads.
