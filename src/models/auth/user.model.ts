@@ -20,6 +20,16 @@ export interface IUser extends Document {
   emailVerificationTokenExpiry: Date;
   createdAt?: Date;
   updatedAt?: Date;
+
+  // Methods
+  isPasswordCorrect: (password: string) => Promise<boolean>;
+  generateAccessToken: () => string;
+  generateRefreshToken: () => string;
+  generateTemporaryToken: () => {
+    unHashedToken: string;
+    hashedToken: string;
+    tokenExpiry: number;
+  };
 }
 
 const userSchema: Schema<IUser> = new Schema<IUser>(
@@ -27,7 +37,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     avatar: {
       type: {
         url: String, // Public URL of the image
-        publicId: String,  // Cloudinary public ID
+        publicId: String, // Cloudinary public ID
       },
       default: {
         url: `https://via.placeholder.com/200x200.png`,
