@@ -8,4 +8,6 @@ export enum UserRolesEnum {
   ADMIN = "ADMIN",
 }
 
+export const AvailableUserRoles: UserRolesEnum[] = Object.values(UserRolesEnum);
+
 export const USER_TEMPORARY_TOKEN_EXPIRY: number = 20 * 60 * 1000; // 20 minutes
