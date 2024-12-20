@@ -5,7 +5,7 @@ export interface IPost extends Document {
   content: string;
   images: {
     url: string;
-    localPath?: string;
+    publicId: string | null; 
   }[];
   tags: string[];
   postAuthor: Schema.Types.ObjectId;
@@ -27,7 +27,7 @@ const postSchema: Schema<IPost> = new Schema<IPost>(
       type: [
         {
           url: {
-            type: String,
+            type: String, // Public URL of the image
             required: [true, "Image URL is required"],
             validate: {
               validator: (url: string) =>
@@ -35,14 +35,14 @@ const postSchema: Schema<IPost> = new Schema<IPost>(
               message: "Image URL must be valid and point to an image file.",
             },
           },
-          localPath: {
+          publicId: {
             type: String,
-            required: false,
+            default: null,
           },
         },
       ],
       validate: {
-        validator: (images: { url: string; localPath?: string }[]) =>
+        validator: (images: { url: string; publicId: string | null }[]) =>
           images.length <= 4,
         message: "You can upload a maximum of 4 images.",
       },

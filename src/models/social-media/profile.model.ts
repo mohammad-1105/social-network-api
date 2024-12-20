@@ -2,7 +2,10 @@ import mongoose, { Schema, Document } from "mongoose";
 
 export interface IProfile extends Document {
   profileOwner: Schema.Types.ObjectId;
-  coverImage: string;
+  coverImage: {
+    url: string;
+    publicId: string | null;
+  };
   bio: string;
   dob: Date;
   location: string;
@@ -29,8 +32,14 @@ const ProfileSchema: Schema<IProfile> = new Schema<IProfile>(
     },
 
     coverImage: {
-      type: String,
-      default: "https://via.placeholder.com/1500x500",
+      type: {
+        url: String,
+        publicId: String,
+      },
+      default: {
+        url: "https://via.placeholder.com/1500x500",
+        publicId: null,
+      },
     },
 
     bio: {

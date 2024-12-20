@@ -5,7 +5,7 @@ import jwt from "jsonwebtoken";
 export interface IUser extends Document {
   avatar: {
     url: string;
-    localPath: string;
+    publicId: string | null;
   };
   username: string;
   fullName: string;
@@ -26,12 +26,12 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
   {
     avatar: {
       type: {
-        url: String,
-        localPath: String,
+        url: String, // Public URL of the image
+        publicId: String,  // Cloudinary public ID
       },
       default: {
         url: `https://via.placeholder.com/200x200.png`,
-        localPath: "",
+        publicId: null,
       },
     },
     username: {
