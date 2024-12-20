@@ -3,7 +3,10 @@ import { USER_TEMPORARY_TOKEN_EXPIRY, UserRolesEnum } from "@/constants";
 import jwt from "jsonwebtoken";
 
 export interface IUser extends Document {
-  avatar: string;
+  avatar: {
+    url: string;
+    localPath: string;
+  };
   username: string;
   fullName: string;
   email: string;
@@ -15,14 +18,21 @@ export interface IUser extends Document {
   forgotPasswordTokenExpiry: Date;
   emailVerificationToken: string;
   emailVerificationTokenExpiry: Date;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const userSchema: Schema<IUser> = new Schema<IUser>(
   {
     avatar: {
-      type: String,
-      default:
-        "https://i.pinimg.com/280x280_RS/77/0f/b7/770fb75f5e81e4c2dbe8934f246aeeab.jpg",
+      type: {
+        url: String,
+        localPath: String,
+      },
+      default: {
+        url: `https://via.placeholder.com/200x200.png`,
+        localPath: "",
+      },
     },
     username: {
       type: String,

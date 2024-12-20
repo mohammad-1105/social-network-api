@@ -16,6 +16,8 @@ export interface IProfile extends Document {
     github?: string;
   };
   interests: string[];
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 const ProfileSchema: Schema<IProfile> = new Schema<IProfile>(
