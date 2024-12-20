@@ -74,9 +74,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
     emailVerificationToken: String,
     emailVerificationTokenExpiry: Date,
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
 // Save password before save user
