@@ -57,7 +57,7 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
       type: String,
       required: [true, "fullName is required"],
       minlength: [4, "fullName must be at least 4 characters long"],
-      maxlength: [20, "fullName must be at most 20 characters long"],
+      maxlength: [50, "fullName must be at most 50 characters long"],
     },
 
     email: {
