@@ -50,3 +50,9 @@ export const resetPasswordSchema = z.object({
     password: z.string().min(6, { message: "password must be at least 6 characters long" }),
 
 });
+
+
+// Define TypeScript types from the schemas
+export type RegisterUserType = z.infer<typeof registerUserSchema>;
+export type LoginUserType = z.infer<typeof loginUserSchema>;
+export type UserIdentifierType = z.infer<typeof userIdentifierSchema>;
