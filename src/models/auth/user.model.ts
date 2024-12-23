@@ -3,6 +3,7 @@ import { USER_TEMPORARY_TOKEN_EXPIRY, UserRolesEnum } from "@/constants";
 import jwt from "jsonwebtoken";
 
 export interface IUser extends Document {
+  _id: Schema.Types.ObjectId;
   avatar: {
     url: string;
     publicId: string | null;

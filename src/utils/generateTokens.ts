@@ -1,7 +1,18 @@
 import { User } from "@/models/auth/user.model";
 import { ApiError } from "./ApiError";
 
-export const generateAccessAndRefreshToken = async (_id: string) => {
+/**
+ * Generates an access token and a refresh token for a given user id
+ *
+ * @param {string} _id - The id of the user for whom the tokens are to be generated
+ *
+ * @returns {Promise<{accessToken: string, refreshToken: string}>} - A promise that resolves to an object containing the access token and the refresh token
+ *
+ * @throws {ApiError} - If the user with the given id is not found, or if an error occurs while generating the tokens
+ */
+export const generateAccessAndRefreshToken = async (
+  _id: string
+): Promise<{ accessToken: string; refreshToken: string }> => {
   try {
     // Find the user by id
     const user = await User.findById(_id);

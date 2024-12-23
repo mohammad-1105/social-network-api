@@ -5,6 +5,8 @@ import { logger } from "@/logger/winston.logger";
 export type SendEmailOptions = {
     email: string;
     subject: string;
+    productName: string;
+    productLink: string;
     mailgenContent: Mailgen.Content;
 }
 
@@ -19,8 +21,8 @@ const sendEmail = async (options: SendEmailOptions) => {
     const mailGenerator = new Mailgen({
         theme: "default",
         product: {
-            name: "Social Backend",
-            link: ""
+            name: options.productName,
+            link: options.productLink
         },
     });
 
