@@ -145,5 +145,111 @@ const loginUser = asyncHandler(async (req, res) => {
     );
 });
 
+const logoutUser = asyncHandler(async (req, res) => {
+  await User.findByIdAndUpdate(
+    req.user?._id, // this is accessible because of the verifyJWT middleware
+    {
+      $set: {
+        refreshToken: null,
+      },
+    },
+    { new: true }
+  );
+
+  // clear the cookies and send response
+  return res
+    .status(200)
+    .clearCookie("accessToken", cookieOptions)
+    .clearCookie("refreshToken", cookieOptions)
+    .json(new ApiResponse(200, "User logged out successfully", null));
+});
+
+const verifyEmail = asyncHandler(async (req, res) => {
+  // get the email verification token
+  const { verificationToken } = req.params;
+
+  if (!verificationToken) {
+    throw new ApiError(400, "Email Verification token is missing");
+  }
+
+  // if confuse why create hashedToken then visit @/models/auth/user.model.ts/userSchema.methods.generateTemporaryToken
+  let hashedtoken = new Bun.CryptoHasher("sha256")
+    .update(verificationToken)
+    .digest("hex");
+
+  const user: IUser | null = await User.findOne({
+    emailVerificationToken: hashedtoken,
+    emailVerificationTokenExpiry: { $gt: Date.now() },
+  });
+
+  if (!user) {
+    throw new ApiError(489, "Token is invalid or expired");
+  }
+
+  // update the user
+  user.emailVerificationToken = null;
+  user.emailVerificationTokenExpiry = null;
+
+  // turn the isEmailVerified field to true
+  user.isEmailVerified = true;
+  await user.save({ validateBeforeSave: false });
+
+  // send response
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Email verified successfully", null));
+});
+
+/**
+ * @description This controller is called when user is logged in and he has snackbar that your email is not verified
+ * In case he did not get the email or the email verification token is expired
+ * he will be able to resend the token while he is logged in
+ */
+const resendEmailVerification = asyncHandler(async (req, res) => {
+  const user: IUser | null = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(404, "User doesn't exist");
+  }
+
+  if (user.isEmailVerified) {
+    throw new ApiError(400, "Email is already verified");
+  }
+
+  const { hashedToken, unHashedToken, tokenExpiry } =
+    user.generateTemporaryToken();
+
+  user.emailVerificationToken = hashedToken;
+  user.emailVerificationTokenExpiry = new Date(tokenExpiry);
+
+  await user.save({ validateBeforeSave: false });
+
+  // send email
+
+  await sendEmail({
+    email: user.email,
+    subject: "Email Verification",
+    productName: "Social Network",
+    productLink: `${req.protocol}://${req.get("host")}`,
+    mailgenContent: emailVerificationMailgenContent(
+      user.username,
+      `${req.protocol}://${req.get("host")}/api/v1/users/verify-email/${unHashedToken}`
+    ),
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, "Email verification link sent to your email", null)
+    );
+});
+
 // export controllers
-export { registerUser };
+export {
+  registerUser,
+  loginUser,
+  logoutUser,
+  verifyEmail,
+  resendEmailVerification,
+};

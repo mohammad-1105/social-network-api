@@ -15,10 +15,10 @@ export interface IUser extends Document {
   role: UserRolesEnum;
   isEmailVerified: boolean;
   refreshToken: string;
-  forgotPasswordToken: string;
-  forgotPasswordTokenExpiry: Date;
-  emailVerificationToken: string;
-  emailVerificationTokenExpiry: Date;
+  forgotPasswordToken: string | null;
+  forgotPasswordTokenExpiry: Date | null;
+  emailVerificationToken: string | null;
+  emailVerificationTokenExpiry: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 
