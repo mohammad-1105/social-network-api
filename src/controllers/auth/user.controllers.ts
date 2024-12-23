@@ -1,11 +1,17 @@
+import jwt from "jsonwebtoken";
 import { UserRolesEnum } from "@/constants";
 import { ApiError } from "@/utils/ApiError";
 import { ApiResponse } from "@/utils/ApiResponse";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { User, type IUser } from "@/models/auth/user.model";
 import { generateAccessAndRefreshToken } from "@/utils/generateTokens";
-import { emailVerificationMailgenContent, sendEmail } from "@/utils/mail";
 import {
+  emailVerificationMailgenContent,
+  forgotPasswordMailgenContent,
+  sendEmail,
+} from "@/utils/mail";
+import {
+  forgotPasswordSchema,
   registerUserSchema,
   type LoginUserType,
   type RegisterUserType,
@@ -230,7 +236,7 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
   await sendEmail({
     email: user.email,
     subject: "Email Verification",
-    productName: "Social Network",
+    productName: "Social Network Api",
     productLink: `${req.protocol}://${req.get("host")}`,
     mailgenContent: emailVerificationMailgenContent(
       user.username,
@@ -245,6 +251,104 @@ const resendEmailVerification = asyncHandler(async (req, res) => {
     );
 });
 
+const refreshAccessToken = asyncHandler(async (req, res) => {
+  // get the refresh token from the cookies or the request body
+  const incomingToken: string =
+    req.cookies.refreshToken || req.body.refreshToken;
+
+  if (!incomingToken) {
+    throw new ApiError(401, "Unauthorized request");
+  }
+
+  // verify jwt token
+  try {
+    const decocedToken = jwt.verify(
+      incomingToken,
+      process.env.REFRESH_TOKEN_SECRET!
+    ) as jwt.JwtPayload;
+
+    const user: IUser | null = await User.findById(decocedToken._id);
+
+    if (!user) {
+      throw new ApiError(401, "Invalid refresh token");
+    }
+
+    // match incomingToken to the user's refreshToken in the DB
+    if (incomingToken !== user.refreshToken) {
+      throw new ApiError(
+        401,
+        "Refresh token mismatch, May be expired to used !"
+      );
+    }
+
+    // if match then update the refresh token and send the response
+    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+      user._id.toString()
+    );
+
+    // Update the user's refresh token in the database
+    user.refreshToken = refreshToken;
+    await user.save({ validateBeforeSave: false });
+
+    return res
+      .status(200)
+      .cookie("accessToken", accessToken, cookieOptions)
+      .cookie("refreshToken", refreshToken, cookieOptions)
+      .json(
+        new ApiResponse(200, "Access token refreshed successfully", {
+          accessToken,
+          refreshAccessToken,
+        })
+      );
+  } catch (error) {
+    throw new ApiError(401, "Invalid refresh token");
+  }
+});
+
+const forgotPasswordRequest = asyncHandler(async (req, res) => {
+  // get the email from the request body
+  const { email } = req.body;
+
+  // validation with zod schema
+  const result = forgotPasswordSchema.safeParse({ email });
+
+  if (!result.success) {
+    throw new ApiError(400, result.error.issues[0].message);
+  }
+
+  // check if the user exists
+  const user: IUser | null = await User.findOne({ email });
+
+  if (!user) {
+    throw new ApiError(404, "User with this email does not exist");
+  }
+
+  // generate token and send it to the user's email
+  const { hashedToken, unHashedToken, tokenExpiry } =
+    user.generateTemporaryToken();
+
+  user.forgotPasswordToken = hashedToken;
+  user.forgotPasswordTokenExpiry = new Date(tokenExpiry);
+
+  await user.save({ validateBeforeSave: false });
+
+  await sendEmail({
+    email: user.email,
+    subject: "Forgot password request",
+    productName: "Social Network Api",
+    productLink: `${req.protocol}://${req.get("host")}`,
+    mailgenContent: forgotPasswordMailgenContent(
+      user.username, // ! NOTE: Following link should be the link of the frontend page responsible to request password reset
+      // ! Frontend will send the below token with the new password in the request body to the backend reset password endpoint
+      `${process.env.FORGOT_PASSWORD_REDIRECT_URL}/${unHashedToken}`
+    ),
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Password reset mail sent to you email", null));
+});
+
 // export controllers
 export {
   registerUser,
@@ -252,4 +356,6 @@ export {
   logoutUser,
   verifyEmail,
   resendEmailVerification,
+  refreshAccessToken,
+  forgotPasswordRequest
 };
