@@ -1,1 +1,30 @@
-// TODO: Implement cloudinary image upload functionality
+import fs from "node:fs"
+import { logger } from "@/logger/winston.logger";
+import { v2 as cloudinary, type UploadApiResponse } from "cloudinary"
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+})
+
+export const uploadOnCloudinary = async (localFilePath: string): Promise<UploadApiResponse | null> => {
+    try {
+        if (!localFilePath) return null;
+
+        const result: UploadApiResponse = await cloudinary.uploader.upload(
+            localFilePath,
+            { resource_type: "auto" }
+        )
+        logger.info(`File has been uploaded : ${result}`)
+
+        // If successfully uploaded then unlink the local file from the server
+        fs.unlinkSync(localFilePath);
+        return result
+    } catch (error) {
+        logger.error(`Error in uploading file on cloudinary : ${error}`)
+        // If failed to upload then unlink the file from the server
+        fs.unlinkSync(localFilePath)
+        return null;
+    }
+}

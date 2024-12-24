@@ -101,7 +101,6 @@ const userSchema: Schema<IUser> = new Schema<IUser>(
 // Save password before save user
 userSchema.pre("save", async function (next) {
   if (!this.isModified("password")) return next();
-
   this.password = await Bun.password.hash(this.password, {
     algorithm: "bcrypt",
   });
@@ -117,7 +116,7 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.isPasswordCorrect = async function (
   password: string
 ): Promise<boolean> {
-  return await Bun.password.verify(this.password, password);
+  return await Bun.password.verify(password, this.password);
 };
 
 // Methods to generate access and refresh token

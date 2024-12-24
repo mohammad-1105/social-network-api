@@ -4,19 +4,28 @@ import { ApiError } from "@/utils/ApiError";
 import { ApiResponse } from "@/utils/ApiResponse";
 import { asyncHandler } from "@/utils/asyncHandler";
 import { User, type IUser } from "@/models/auth/user.model";
-import { generateAccessAndRefreshToken } from "@/utils/generateTokens";
+import {
+  changeCurrentPasswordSchema,
+  forgotPasswordSchema,
+  loginUserSchema,
+  registerUserSchema,
+  resetForgottenPasswordSchema,
+  roleSchema,
+  type ChangeCurrentPasswordType,
+  type LoginUserType,
+  type RegisterUserType,
+  type ResetForgottenPasswordType,
+  type RoleType,
+} from "@/schemas/auth/user.schema";
+import type { UploadApiResponse } from "cloudinary";
 import {
   emailVerificationMailgenContent,
   forgotPasswordMailgenContent,
   sendEmail,
 } from "@/utils/mail";
-import {
-  forgotPasswordSchema,
-  registerUserSchema,
-  type LoginUserType,
-  type RegisterUserType,
-} from "@/schemas/auth/user.schema";
 import { cookieOptions } from "@/utils/cookieOptions";
+import { uploadOnCloudinary } from "@/utils/cloudinary";
+import { generateAccessAndRefreshToken } from "@/utils/generateTokens";
 
 const registerUser = asyncHandler(async (req, res) => {
   // get the data from the request
@@ -104,7 +113,7 @@ const loginUser = asyncHandler(async (req, res) => {
   const { identifier, password }: LoginUserType = req.body;
 
   // validation with zod schema
-  const result = registerUserSchema.safeParse({
+  const result = loginUserSchema.safeParse({
     identifier,
     password,
   });
@@ -172,7 +181,9 @@ const logoutUser = asyncHandler(async (req, res) => {
 
 const verifyEmail = asyncHandler(async (req, res) => {
   // get the email verification token
-  const { verificationToken } = req.params;
+  const { verificationToken }: { verificationToken: string } = req.params as {
+    verificationToken: string;
+  };
 
   if (!verificationToken) {
     throw new ApiError(400, "Email Verification token is missing");
@@ -261,48 +272,44 @@ const refreshAccessToken = asyncHandler(async (req, res) => {
   }
 
   // verify jwt token
-  try {
-    const decocedToken = jwt.verify(
-      incomingToken,
-      process.env.REFRESH_TOKEN_SECRET!
-    ) as jwt.JwtPayload;
 
-    const user: IUser | null = await User.findById(decocedToken._id);
+  const decocedToken = jwt.verify(
+    incomingToken,
+    process.env.REFRESH_TOKEN_SECRET!
+  ) as jwt.JwtPayload;
 
-    if (!user) {
-      throw new ApiError(401, "Invalid refresh token");
-    }
+  console.log("decocedToken", decocedToken);
 
-    // match incomingToken to the user's refreshToken in the DB
-    if (incomingToken !== user.refreshToken) {
-      throw new ApiError(
-        401,
-        "Refresh token mismatch, May be expired to used !"
-      );
-    }
-
-    // if match then update the refresh token and send the response
-    const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
-      user._id.toString()
-    );
-
-    // Update the user's refresh token in the database
-    user.refreshToken = refreshToken;
-    await user.save({ validateBeforeSave: false });
-
-    return res
-      .status(200)
-      .cookie("accessToken", accessToken, cookieOptions)
-      .cookie("refreshToken", refreshToken, cookieOptions)
-      .json(
-        new ApiResponse(200, "Access token refreshed successfully", {
-          accessToken,
-          refreshAccessToken,
-        })
-      );
-  } catch (error) {
+  const user: IUser | null = await User.findById(decocedToken._id);
+  console.log("user :", user);
+  if (!user) {
     throw new ApiError(401, "Invalid refresh token");
   }
+
+  // match incomingToken to the user's refreshToken in the DB
+  if (incomingToken !== user.refreshToken) {
+    throw new ApiError(401, "Refresh token mismatch, May be expired to used !");
+  }
+
+  // if match then update the refresh token and send the response
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(
+    user._id.toString()
+  );
+
+  // Update the user's refresh token in the database
+  user.refreshToken = refreshToken;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, cookieOptions)
+    .cookie("refreshToken", refreshToken, cookieOptions)
+    .json(
+      new ApiResponse(200, "Access token refreshed successfully", {
+        accessToken,
+        refreshAccessToken,
+      })
+    );
 });
 
 const forgotPasswordRequest = asyncHandler(async (req, res) => {
@@ -349,6 +356,162 @@ const forgotPasswordRequest = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, "Password reset mail sent to you email", null));
 });
 
+const resetForgottenPassword = asyncHandler(async (req, res) => {
+  // get the reset token and new password from the request
+  const { resetToken }: { resetToken: string } = req.params as {
+    resetToken: string;
+  };
+  const { newPassword }: ResetForgottenPasswordType = req.body;
+
+  // validation with zod schema
+  const result = resetForgottenPasswordSchema.safeParse({ newPassword });
+
+  if (!result.success) {
+    throw new ApiError(400, result.error.issues[0].message);
+  }
+
+  // validate the token
+  let hashedToken = new Bun.CryptoHasher("sha256")
+    .update(resetToken)
+    .digest("hex");
+
+  const user: IUser | null = await User.findOne({
+    forgotPasswordToken: hashedToken,
+    forgotPasswordTokenExpiry: { $gt: new Date() },
+  });
+
+  if (!user) {
+    throw new ApiError(401, "Invalid reset token or May expired !");
+  }
+
+  // If everything is ok and token is valid then
+  // reset the forgot password token and expiry
+  user.forgotPasswordToken = null;
+  user.forgotPasswordTokenExpiry = null;
+
+  // set the new password
+  user.password = newPassword;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Password reset successful", null));
+});
+
+const changeCurrentPassword = asyncHandler(async (req, res) => {
+  // get the current password and new password from the request
+  const { currentPassword, newPassword }: ChangeCurrentPasswordType = req.body;
+
+  // validation with zod schema
+  const result = changeCurrentPasswordSchema.safeParse({
+    currentPassword,
+    newPassword,
+  });
+
+  if (!result.success) {
+    throw new ApiError(400, result.error.issues[0].message);
+  }
+
+  // check if the user exists
+  const user: IUser | null = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(403, "Unauthorized access");
+  }
+
+  if (currentPassword === newPassword) {
+    throw new ApiError(
+      400,
+      "New password cannot be the same as the current password"
+    );
+  }
+
+  // check if the current password is correct
+  const isPasswordCorrect: boolean =
+    await user.isPasswordCorrect(currentPassword);
+
+  if (!isPasswordCorrect) {
+    throw new ApiError(401, "Current password is incorrect");
+  }
+
+  // set the new password
+  user.password = newPassword;
+
+  // save the user
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Password changed successfully", null));
+});
+
+const assignRole = asyncHandler(async (req, res) => {
+  // get the userId and role from the request
+  const { userId }: { userId: string } = req.params as { userId: string };
+  const { role }: RoleType = req.body;
+
+  // validation with zod schema
+  const result = roleSchema.safeParse({ role });
+  if (!result.success) {
+    throw new ApiError(400, result.error.issues[0].message);
+  }
+
+  // check if the user exists
+  const user: IUser | null = await User.findById(userId);
+
+  if (!user) {
+    throw new ApiError(403, "Unauthorized access");
+  }
+
+  // assign the role to the user
+  user.role = role;
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Role assigned successfully", null));
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Current user fetched successfully", req.user));
+});
+
+const updateUserAvatar = asyncHandler(async (req, res) => {
+  // check if the user has uploaded the file
+  // Here we can access the file using req.file because of the multer middleware
+  if (!req.file?.filename) {
+    throw new ApiError(400, "No file uploaded, Missing avatar image");
+  }
+
+  // get the user
+  const user: IUser | null = await User.findById(req.user?._id);
+
+  if (!user) {
+    throw new ApiError(403, "Unauthorized access");
+  }
+
+  // upload the file to cloudinary
+  const result: UploadApiResponse | null = await uploadOnCloudinary(
+    req.file.path
+  );
+
+  if (!result?.url) {
+    throw new ApiError(500, "Error uploading file");
+  }
+
+  // update the user
+  user.avatar.url = result.secure_url || "";
+  user.avatar.publicId = result.public_id || "";
+
+  await user.save({ validateBeforeSave: false });
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, "Avatar updated successfully", null));
+});
+
 // export controllers
 export {
   registerUser,
@@ -357,5 +520,10 @@ export {
   verifyEmail,
   resendEmailVerification,
   refreshAccessToken,
-  forgotPasswordRequest
+  forgotPasswordRequest,
+  resetForgottenPassword,
+  changeCurrentPassword,
+  assignRole,
+  getCurrentUser,
+  updateUserAvatar,
 };

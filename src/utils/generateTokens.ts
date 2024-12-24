@@ -25,6 +25,8 @@ export const generateAccessAndRefreshToken = async (
 
     // attach refresh token to the user document to avoid refreshing the access token with multiple refresh tokens
     user.refreshToken = refreshToken;
+    // save the user
+    await user.save({ validateBeforeSave: false });
 
     return { accessToken, refreshToken };
   } catch (error: any) {
