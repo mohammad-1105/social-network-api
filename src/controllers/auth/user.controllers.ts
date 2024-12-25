@@ -24,7 +24,7 @@ import {
   sendEmail,
 } from "@/utils/mail";
 import { cookieOptions } from "@/utils/cookieOptions";
-import { uploadOnCloudinary } from "@/utils/cloudinary";
+import { deleteFromCloudinary, uploadOnCloudinary } from "@/utils/cloudinary";
 import { generateAccessAndRefreshToken } from "@/utils/generateTokens";
 
 const registerUser = asyncHandler(async (req, res) => {
@@ -491,14 +491,16 @@ const updateUserAvatar = asyncHandler(async (req, res) => {
   if (!user) {
     throw new ApiError(403, "Unauthorized access");
   }
+  // delete the previous avatar from cloudinary
+  await deleteFromCloudinary(user.avatar.publicId);
 
   // upload the file to cloudinary
   const result: UploadApiResponse | null = await uploadOnCloudinary(
     req.file.path
   );
 
-  if (!result?.url) {
-    throw new ApiError(500, "Error uploading file");
+  if (!result?.secure_url) {
+    throw new ApiError(500, "Error uploading avatar");
   }
 
   // update the user

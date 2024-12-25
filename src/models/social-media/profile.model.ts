@@ -84,7 +84,7 @@ const ProfileSchema: Schema<IProfile> = new Schema<IProfile>(
         type: String,
         default: "",
       },
-      linkedin: {
+      linkedIn: {
         type: String,
         default: "",
       },
